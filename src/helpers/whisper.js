@@ -586,6 +586,16 @@ class WhisperManager {
       addCandidate(process.env.OPENWHISPR_PYTHON);
     }
 
+    // First try the shared detection logic from PythonInstaller as it's very reliable
+    try {
+      const checkResult = await this.pythonInstaller.isPythonInstalled();
+      if (checkResult.installed && checkResult.command) {
+        addCandidate(checkResult.command);
+      }
+    } catch (error) {
+      debugLogger.log(`PythonInstaller check failed: ${error.message}`);
+    }
+
     if (process.platform === "win32") {
       // Windows: Get registry-based candidates first (most reliable)
       const registryCandidates = await this.getWindowsRegistryPython();
@@ -601,6 +611,7 @@ class WhisperManager {
       "python3.10",
       "python3",
       "python",
+      "py",
       "/usr/bin/python3.12",
       "/usr/bin/python3.11",
       "/usr/bin/python3.10",
@@ -622,10 +633,11 @@ class WhisperManager {
       // Windows-specific: resolve relative commands to absolute paths
       let resolvedPath = pythonPath;
       if (process.platform === "win32" && !path.isAbsolute(pythonPath)) {
-        resolvedPath = await this.resolveWindowsCommand(pythonPath);
-        if (!resolvedPath) {
-          debugLogger.log(`Could not resolve Windows command: ${pythonPath}`);
-          continue;
+        const resolved = await this.resolveWindowsCommand(pythonPath);
+        if (resolved) {
+          resolvedPath = resolved;
+        } else {
+          debugLogger.log(`Could not resolve Windows command via 'where': ${pythonPath}, will try running directly`);
         }
       }
 
@@ -741,7 +753,7 @@ class WhisperManager {
       });
 
       // 'where' returns multiple paths, take the first one
-      const paths = output.trim().split('\n');
+      const paths = output.trim().split(/\r?\n/);
       if (paths.length > 0) {
         const resolvedPath = paths[0].trim();
         if (fs.existsSync(resolvedPath)) {

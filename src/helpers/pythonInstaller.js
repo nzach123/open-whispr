@@ -300,7 +300,7 @@ class PythonInstaller {
   }
 
   async isPythonInstalled() {
-    const possibleCommands = ['python3.11', 'python3', 'python'];
+    const possibleCommands = ['python3.11', 'python3', 'python', 'py'];
     
     // On macOS, also check common Python installation paths
     const additionalPaths = process.platform === 'darwin' ? [
