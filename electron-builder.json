@@ -4,8 +4,8 @@
   "directories": {
     "output": "dist"
   },
-  "npmRebuild": true,
-  "buildDependenciesFromSource": true,
+  "npmRebuild": false,
+  "buildDependenciesFromSource": false,
   "files": [
     "main.js",
     "preload.js",
