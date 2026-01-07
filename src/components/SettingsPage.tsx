@@ -16,9 +16,16 @@ import { REASONING_PROVIDERS } from "../utils/languages";
 import { formatHotkeyLabel } from "../utils/hotkeys";
 import LanguageSelector from "./ui/LanguageSelector";
 import PromptStudio from "./ui/PromptStudio";
-import { API_ENDPOINTS } from "../config/constants";
+import { API_ENDPOINTS, GEMINI_TRANSCRIPTION_MODELS } from "../config/constants";
 import AIModelSelectorEnhanced from "./AIModelSelectorEnhanced";
 import type { UpdateInfoResult } from "../types/electron";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 const InteractiveKeyboard = React.lazy(() => import("./ui/Keyboard"));
 
 export type SettingsSectionType =
@@ -76,6 +83,8 @@ export default function SettingsPage({
     setAnthropicApiKey,
     setGeminiApiKey,
     setDictationKey,
+    geminiTranscriptionModel,
+    setGeminiTranscriptionModel,
     updateTranscriptionSettings,
     updateReasoningSettings,
     updateApiKeys,
@@ -114,7 +123,7 @@ export default function SettingsPage({
   const installTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const subscribeToUpdates = useCallback(() => {
-    if (!window.electronAPI) return () => {};
+    if (!window.electronAPI) return () => { };
 
     const disposers: Array<(() => void) | void> = [];
 
@@ -285,12 +294,12 @@ export default function SettingsPage({
     setCloudReasoningBaseUrl(normalizedReasoningBase);
 
     // Update reasoning settings
-    updateReasoningSettings({ 
-      useReasoningModel, 
+    updateReasoningSettings({
+      useReasoningModel,
       reasoningModel,
       cloudReasoningBaseUrl: normalizedReasoningBase
     });
-    
+
     // Save API keys to backend based on provider
     if (localReasoningProvider === "openai" && openaiApiKey) {
       await window.electronAPI?.saveOpenAIKey(openaiApiKey);
@@ -301,7 +310,7 @@ export default function SettingsPage({
     if (localReasoningProvider === "gemini" && geminiApiKey) {
       await window.electronAPI?.saveGeminiKey(geminiApiKey);
     }
-    
+
     updateApiKeys({
       ...(localReasoningProvider === "openai" &&
         openaiApiKey.trim() && { openaiApiKey }),
@@ -310,7 +319,7 @@ export default function SettingsPage({
       ...(localReasoningProvider === "gemini" &&
         geminiApiKey.trim() && { geminiApiKey }),
     });
-    
+
     // Save the provider separately since it's computed from the model
     localStorage.setItem("reasoningProvider", localReasoningProvider);
 
@@ -318,16 +327,14 @@ export default function SettingsPage({
       localReasoningProvider === 'custom'
         ? 'Custom'
         : REASONING_PROVIDERS[
-            localReasoningProvider as keyof typeof REASONING_PROVIDERS
-          ]?.name || localReasoningProvider;
+          localReasoningProvider as keyof typeof REASONING_PROVIDERS
+        ]?.name || localReasoningProvider;
 
     showAlertDialog({
       title: "Reasoning Settings Saved",
-      description: `AI text enhancement ${
-        useReasoningModel ? "enabled" : "disabled"
-      } with ${
-        providerLabel
-      } ${reasoningModel}`,
+      description: `AI text enhancement ${useReasoningModel ? "enabled" : "disabled"
+        } with ${providerLabel
+        } ${reasoningModel}`,
     });
   }, [
     useReasoningModel,
@@ -352,7 +359,7 @@ export default function SettingsPage({
       if (geminiApiKey) {
         await window.electronAPI?.saveGeminiKey(geminiApiKey);
       }
-      
+
       updateApiKeys({ openaiApiKey, anthropicApiKey, geminiApiKey });
       updateTranscriptionSettings({ allowLocalFallback, fallbackWhisperModel });
 
@@ -360,24 +367,22 @@ export default function SettingsPage({
         if (openaiApiKey) {
           await window.electronAPI?.createProductionEnvFile(openaiApiKey);
         }
-        
+
         const savedKeys: string[] = [];
         if (openaiApiKey) savedKeys.push("OpenAI");
         if (anthropicApiKey) savedKeys.push("Anthropic");
         if (geminiApiKey) savedKeys.push("Gemini");
-        
+
         showAlertDialog({
           title: "API Keys Saved",
-          description: `${savedKeys.join(", ")} API key${savedKeys.length > 1 ? 's' : ''} saved successfully! Your credentials have been securely recorded.${
-            allowLocalFallback ? " Local Whisper fallback is enabled." : ""
-          }`,
+          description: `${savedKeys.join(", ")} API key${savedKeys.length > 1 ? 's' : ''} saved successfully! Your credentials have been securely recorded.${allowLocalFallback ? " Local Whisper fallback is enabled." : ""
+            }`,
         });
       } catch (envError) {
         showAlertDialog({
           title: "API Key Saved",
-          description: `OpenAI API key saved successfully and will be available for transcription${
-            allowLocalFallback ? " with Local Whisper fallback enabled" : ""
-          }`,
+          description: `OpenAI API key saved successfully and will be available for transcription${allowLocalFallback ? " with Local Whisper fallback enabled" : ""
+            }`,
         });
       }
     } catch (error) {
@@ -940,116 +945,114 @@ export default function SettingsPage({
             </div>
 
             {!useLocalWhisper && (
-              <div className="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                <h4 className="font-medium text-blue-900">OpenAI-Compatible Cloud Setup</h4>
+              <div className="space-y-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <h4 className="font-medium text-emerald-900">Gemini Cloud Transcription</h4>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-emerald-900">
+                    Model
+                  </label>
+                  <Select
+                    value={geminiTranscriptionModel}
+                    onValueChange={setGeminiTranscriptionModel}
+                  >
+                    <SelectTrigger className="w-full bg-white">
+                      <SelectValue placeholder="Select a model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GEMINI_TRANSCRIPTION_MODELS.map((model) => (
+                        <SelectItem key={model.id} value={model.id}>
+                          {model.name} {model.recommended && "⭐"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-emerald-700">
+                    Free tier: 15 requests/min, 1000 requests/day
+                  </p>
+                </div>
                 <ApiKeyInput
-                  apiKey={openaiApiKey}
-                  setApiKey={setOpenaiApiKey}
+                  apiKey={geminiApiKey}
+                  setApiKey={setGeminiApiKey}
                   helpText={
                     <>
-                      Supports OpenAI or compatible endpoints.{" "}
+                      Get a free API key from{" "}
                       <a
-                        href="https://platform.openai.com"
+                        href="https://aistudio.google.com"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-600 underline"
+                        className="text-emerald-600 underline"
                       >
-                        Get an API key
+                        Google AI Studio
                       </a>
                       .
                     </>
                   }
                 />
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-blue-900">
-                    Custom Base URL (optional)
-                  </label>
-                  <Input
-                    value={cloudTranscriptionBaseUrl}
-                    onChange={(event) => setCloudTranscriptionBaseUrl(event.target.value)}
-                    placeholder="https://api.openai.com/v1"
-                    className="text-sm"
-                  />
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCloudTranscriptionBaseUrl(API_ENDPOINTS.TRANSCRIPTION_BASE)}
-                    >
-                      Reset to Default
-                    </Button>
-                  </div>
-                  <p className="text-xs text-blue-800">
-                    Requests for cloud transcription use this OpenAI-compatible base URL. Leave empty to fall back to
-                    <code className="ml-1">{API_ENDPOINTS.TRANSCRIPTION_BASE}</code>.
-                  </p>
-                </div>
               </div>
             )}
 
             {useLocalWhisper && whisperHook.whisperInstalled && (
-            <div className="space-y-4 p-4 bg-purple-50 border border-purple-200 rounded-xl">
-              <h4 className="font-medium text-purple-900">
-                Local Whisper Model
-              </h4>
-              <WhisperModelPicker
-                selectedModel={whisperModel}
-                onModelSelect={setWhisperModel}
-                variant="settings"
+              <div className="space-y-4 p-4 bg-purple-50 border border-purple-200 rounded-xl">
+                <h4 className="font-medium text-purple-900">
+                  Local Whisper Model
+                </h4>
+                <WhisperModelPicker
+                  selectedModel={whisperModel}
+                  onModelSelect={setWhisperModel}
+                  variant="settings"
+                />
+              </div>
+            )}
+
+            <div className="space-y-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+              <h4 className="font-medium text-gray-900">Preferred Language</h4>
+              <LanguageSelector
+                value={preferredLanguage}
+                onChange={(value) => {
+                  setPreferredLanguage(value);
+                  updateTranscriptionSettings({ preferredLanguage: value });
+                }}
+                className="w-full"
               />
             </div>
-          )}
 
-          <div className="space-y-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
-            <h4 className="font-medium text-gray-900">Preferred Language</h4>
-            <LanguageSelector
-              value={preferredLanguage}
-              onChange={(value) => {
-                setPreferredLanguage(value);
-                updateTranscriptionSettings({ preferredLanguage: value });
+            <Button
+              onClick={() => {
+                const normalizedTranscriptionBase = (cloudTranscriptionBaseUrl || '').trim();
+                setCloudTranscriptionBaseUrl(normalizedTranscriptionBase);
+
+                updateTranscriptionSettings({
+                  useLocalWhisper,
+                  whisperModel,
+                  preferredLanguage,
+                  cloudTranscriptionBaseUrl: normalizedTranscriptionBase,
+                });
+
+                if (!useLocalWhisper && openaiApiKey.trim()) {
+                  updateApiKeys({ openaiApiKey });
+                }
+
+                const descriptionParts = [
+                  `Transcription mode: ${useLocalWhisper ? 'Local Whisper' : 'Cloud'}.`,
+                  `Language: ${preferredLanguage}.`,
+                ];
+
+                if (!useLocalWhisper) {
+                  const baseLabel = normalizedTranscriptionBase || API_ENDPOINTS.TRANSCRIPTION_BASE;
+                  descriptionParts.push(`Endpoint: ${baseLabel}.`);
+                }
+
+                showAlertDialog({
+                  title: "Settings Saved",
+                  description: descriptionParts.join(' '),
+                });
               }}
               className="w-full"
-            />
+            >
+              Save Transcription Settings
+            </Button>
           </div>
-
-          <Button
-            onClick={() => {
-              const normalizedTranscriptionBase = (cloudTranscriptionBaseUrl || '').trim();
-              setCloudTranscriptionBaseUrl(normalizedTranscriptionBase);
-
-              updateTranscriptionSettings({
-                useLocalWhisper,
-                whisperModel,
-                preferredLanguage,
-                cloudTranscriptionBaseUrl: normalizedTranscriptionBase,
-              });
-
-              if (!useLocalWhisper && openaiApiKey.trim()) {
-                updateApiKeys({ openaiApiKey });
-              }
-
-              const descriptionParts = [
-                `Transcription mode: ${useLocalWhisper ? 'Local Whisper' : 'Cloud'}.`,
-                `Language: ${preferredLanguage}.`,
-              ];
-
-              if (!useLocalWhisper) {
-                const baseLabel = normalizedTranscriptionBase || API_ENDPOINTS.TRANSCRIPTION_BASE;
-                descriptionParts.push(`Endpoint: ${baseLabel}.`);
-              }
-
-              showAlertDialog({
-                title: "Settings Saved",
-                description: descriptionParts.join(' '),
-              });
-            }}
-            className="w-full"
-          >
-            Save Transcription Settings
-          </Button>
-        </div>
-      );
+        );
 
       case "aiModels":
         return (
@@ -1189,11 +1192,11 @@ export default function SettingsPage({
                 AI Prompt Management
               </h3>
               <p className="text-sm text-gray-600 mb-6">
-                View and customize the prompts that power OpenWhispr's AI text processing. 
+                View and customize the prompts that power OpenWhispr's AI text processing.
                 Adjust these to change how your transcriptions are formatted and enhanced.
               </p>
             </div>
-            
+
             <PromptStudio />
           </div>
         );
@@ -1220,7 +1223,7 @@ export default function SettingsPage({
         onOpenChange={(open) => !open && hideAlertDialog()}
         title={alertDialog.title}
         description={alertDialog.description}
-        onOk={() => {}}
+        onOk={() => { }}
       />
 
       {renderSectionContent()}

@@ -112,3 +112,10 @@ export const RETRY_CONFIG = {
   MAX_DELAY: 10000, // 10 seconds
   BACKOFF_MULTIPLIER: 2,
 } as const;
+
+// Gemini Transcription Models (for free tier)
+export const GEMINI_TRANSCRIPTION_MODELS = [
+  { id: 'gemini-2.5-flash-lite', name: 'Flash-Lite (Free Tier)', recommended: true },
+  { id: 'gemini-2.5-flash', name: 'Flash', recommended: false },
+  { id: 'gemini-1.5-flash', name: '1.5 Flash (Fallback)', recommended: false },
+] as const;

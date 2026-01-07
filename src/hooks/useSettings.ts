@@ -11,6 +11,7 @@ export interface TranscriptionSettings {
   fallbackWhisperModel: string;
   preferredLanguage: string;
   cloudTranscriptionBaseUrl?: string;
+  geminiTranscriptionModel: string;
 }
 
 export interface ReasoningSettings {
@@ -97,6 +98,16 @@ export function useSettings() {
   const [cloudReasoningBaseUrl, setCloudReasoningBaseUrl] = useLocalStorage(
     "cloudReasoningBaseUrl",
     API_ENDPOINTS.OPENAI_BASE,
+    {
+      serialize: String,
+      deserialize: String,
+    }
+  );
+
+  // Gemini transcription model (for cloud transcription)
+  const [geminiTranscriptionModel, setGeminiTranscriptionModel] = useLocalStorage(
+    "geminiTranscriptionModel",
+    "gemini-2.5-flash-lite",
     {
       serialize: String,
       deserialize: String,
@@ -224,6 +235,8 @@ export function useSettings() {
     anthropicApiKey,
     geminiApiKey,
     dictationKey,
+    geminiTranscriptionModel,
+    setGeminiTranscriptionModel,
     setUseLocalWhisper,
     setWhisperModel,
     setAllowOpenAIFallback,
@@ -247,7 +260,7 @@ export function useSettings() {
       };
       setReasoningModel(
         providerModels[provider as keyof typeof providerModels] ||
-          "gpt-4o-mini"
+        "gpt-4o-mini"
       );
     },
     setOpenaiApiKey,

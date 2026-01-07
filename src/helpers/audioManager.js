@@ -51,10 +51,10 @@ class AudioManager {
         this.onStateChange?.({ isRecording: false, isProcessing: true });
 
         const audioBlob = new Blob(this.audioChunks, { type: "audio/wav" });
-        
+
         if (audioBlob.size === 0) {
         }
-        
+
         const durationSeconds = this.recordingStartTime
           ? (Date.now() - this.recordingStartTime) / 1000
           : null;
@@ -71,11 +71,11 @@ class AudioManager {
 
       return true;
     } catch (error) {
-      
+
       // Provide more specific error messages
       let errorTitle = "Recording Error";
       let errorDescription = `Failed to access microphone: ${error.message}`;
-      
+
       if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
         errorTitle = "Microphone Access Denied";
         errorDescription = "Please grant microphone permission in your system settings and try again.";
@@ -86,7 +86,7 @@ class AudioManager {
         errorTitle = "Microphone In Use";
         errorDescription = "The microphone is being used by another application. Please close other apps and try again.";
       }
-      
+
       this.onError?.({
         title: errorTitle,
         description: errorDescription,
@@ -113,7 +113,8 @@ class AudioManager {
       if (useLocalWhisper) {
         result = await this.processWithLocalWhisper(audioBlob, whisperModel, metadata);
       } else {
-        result = await this.processWithOpenAIAPI(audioBlob, metadata);
+        // Use Gemini for cloud transcription (free tier)
+        result = await this.processWithGeminiAPI(audioBlob, metadata);
       }
       this.onTranscriptionComplete?.(result);
     } catch (error) {
@@ -208,6 +209,126 @@ class AudioManager {
     return apiKey;
   }
 
+  async getGeminiAPIKey() {
+    if (this.cachedGeminiApiKey) {
+      return this.cachedGeminiApiKey;
+    }
+
+    let apiKey = await window.electronAPI.getGeminiKey();
+    if (!apiKey || apiKey.trim() === "") {
+      apiKey = localStorage.getItem("geminiApiKey");
+    }
+
+    if (!apiKey || apiKey.trim() === "") {
+      throw new Error(
+        "Gemini API key not found. Please set your API key in Settings → API Keys."
+      );
+    }
+
+    this.cachedGeminiApiKey = apiKey;
+    return apiKey;
+  }
+
+  async processWithGeminiAPI(audioBlob, metadata = {}) {
+    const language = localStorage.getItem("preferredLanguage");
+    const model = localStorage.getItem("geminiTranscriptionModel") || "gemini-2.5-flash-lite";
+
+    try {
+      const apiKey = await this.getGeminiAPIKey();
+
+      // Convert audio to MP3 via Main process FFmpeg for smaller payload
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const base64Mp3 = await window.electronAPI.convertWavToMp3(arrayBuffer);
+
+      // Build Gemini request
+      const languageHint = language && language !== "auto" ? ` in ${language}` : "";
+      const requestBody = {
+        contents: [{
+          parts: [
+            { inline_data: { mime_type: "audio/mpeg", data: base64Mp3 } },
+            { text: `Transcribe this audio${languageHint}. Output ONLY the transcription text, nothing else.` }
+          ]
+        }],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 4096
+        }
+      };
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey
+          },
+          body: JSON.stringify(requestBody)
+        }
+      );
+
+      // Handle rate limiting
+      if (response.status === 429) {
+        throw new Error("Rate limited (15 req/min on free tier). Please wait a moment and try again.");
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorData = { error: response.statusText };
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText || response.statusText };
+        }
+        throw new Error(errorData.error?.message || errorData.error || `Gemini API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Extract transcription from Gemini response
+      if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
+        throw new Error("No transcription received from Gemini");
+      }
+
+      const rawText = data.candidates[0].content.parts[0].text.trim();
+
+      // Process with reasoning model if enabled
+      const text = await this.processTranscription(rawText, "gemini");
+      return { success: true, text: text || rawText, source: "gemini" };
+
+    } catch (error) {
+      // Check if local fallback is enabled
+      const allowLocalFallback = localStorage.getItem("allowLocalFallback") === "true";
+      const fallbackModel = localStorage.getItem("fallbackWhisperModel") || "base";
+
+      if (allowLocalFallback) {
+        try {
+          const arrayBuffer = await audioBlob.arrayBuffer();
+          const options = { model: fallbackModel };
+          if (language && language !== "auto") {
+            options.language = language;
+          }
+
+          const result = await window.electronAPI.transcribeLocalWhisper(arrayBuffer, options);
+
+          if (result.success && result.text) {
+            const text = await this.processTranscription(result.text, "local-fallback");
+            if (text) {
+              return { success: true, text, source: "local-fallback" };
+            }
+          }
+          throw error;
+        } catch (fallbackError) {
+          throw new Error(
+            `Gemini API failed: ${error.message}. Local fallback also failed: ${fallbackError.message}`
+          );
+        }
+      }
+
+      throw error;
+    }
+  }
+
   async optimizeAudio(audioBlob) {
     return new Promise((resolve) => {
       const audioContext = new (window.AudioContext ||
@@ -295,32 +416,32 @@ class AudioManager {
       agentName,
       textLength: text.length
     });
-    
+
     const startTime = Date.now();
-    
+
     try {
       const result = await ReasoningService.processText(text, model, agentName);
-      
+
       const processingTime = Date.now() - startTime;
-      
+
       logger.logReasoning("REASONING_SERVICE_COMPLETE", {
         model,
         processingTimeMs: processingTime,
         resultLength: result.length,
         success: true
       });
-      
+
       return result;
     } catch (error) {
       const processingTime = Date.now() - startTime;
-      
+
       logger.logReasoning("REASONING_SERVICE_ERROR", {
         model,
         processingTimeMs: processingTime,
         error: error.message,
         stack: error.stack
       });
-      
+
       throw error;
     }
   }
@@ -430,13 +551,13 @@ class AudioManager {
         });
 
         const result = await this.processWithReasoningModel(preparedText, reasoningModel, agentName);
-        
+
         logger.logReasoning("REASONING_SUCCESS", {
           resultLength: result.length,
           resultPreview: result.substring(0, 100) + (result.length > 100 ? "..." : ""),
           processingTime: new Date().toISOString()
         });
-        
+
         return result;
       } catch (error) {
         logger.logReasoning("REASONING_FAILED", {

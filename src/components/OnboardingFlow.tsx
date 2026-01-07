@@ -39,7 +39,14 @@ import { UnifiedModelPickerCompact } from "./UnifiedModelPicker";
 const InteractiveKeyboard = React.lazy(() => import("./ui/Keyboard"));
 import { setAgentName as saveAgentName } from "../utils/agentName";
 import { formatHotkeyLabel } from "../utils/hotkeys";
-import { API_ENDPOINTS, buildApiUrl, normalizeBaseUrl } from "../config/constants";
+import { API_ENDPOINTS, GEMINI_TRANSCRIPTION_MODELS, buildApiUrl, normalizeBaseUrl } from "../config/constants";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -82,9 +89,12 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     updateTranscriptionSettings,
     updateReasoningSettings,
     updateApiKeys,
+    geminiApiKey,
+    geminiTranscriptionModel,
+    setGeminiTranscriptionModel,
   } = useSettings();
 
-  const [apiKey, setApiKey] = useState(openaiApiKey);
+  const [apiKey, setApiKey] = useState(geminiApiKey);
   const [hotkey, setHotkey] = useState(dictationKey || "`");
   const [transcriptionBaseUrl, setTranscriptionBaseUrl] = useState(cloudTranscriptionBaseUrl);
   const [reasoningBaseUrl, setReasoningBaseUrl] = useState(cloudReasoningBaseUrl);
@@ -138,28 +148,28 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     return buildApiUrl(base, "/models");
   }, [usingCustomReasoningBase, normalizedReasoningBaseUrl]);
 
-  const persistOpenAIKey = useCallback(
+  const persistGeminiKey = useCallback(
     async (nextKey: string) => {
       const trimmedKey = nextKey.trim();
       if (useLocalWhisper || !trimmedKey) {
         return false;
       }
-      if (trimmedKey === openaiApiKey.trim()) {
+      if (trimmedKey === geminiApiKey.trim()) {
         return true;
       }
 
       try {
-        if (window.electronAPI?.saveOpenAIKey) {
-          await window.electronAPI.saveOpenAIKey(trimmedKey);
+        if (window.electronAPI?.saveGeminiKey) {
+          await window.electronAPI.saveGeminiKey(trimmedKey);
         }
-        updateApiKeys({ openaiApiKey: trimmedKey });
+        updateApiKeys({ geminiApiKey: trimmedKey });
         return true;
       } catch (error) {
-        console.error("Failed to save OpenAI key", error);
+        console.error("Failed to save Gemini key", error);
         return false;
       }
     },
-    [useLocalWhisper, updateApiKeys, openaiApiKey]
+    [useLocalWhisper, updateApiKeys, geminiApiKey]
   );
 
   const reasoningModelRef = useRef(reasoningModel);
@@ -188,7 +198,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       try {
         // Security: Only allow HTTPS endpoints (except localhost for development)
         const isLocalhost = normalizedReasoningBaseUrl.includes('://localhost') ||
-                           normalizedReasoningBaseUrl.includes('://127.0.0.1');
+          normalizedReasoningBaseUrl.includes('://127.0.0.1');
         if (!normalizedReasoningBaseUrl.startsWith('https://') && !isLocalhost) {
           throw new Error('Only HTTPS endpoints are allowed (except localhost for testing).');
         }
@@ -218,8 +228,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         const rawModels = Array.isArray(payload?.data)
           ? payload.data
           : Array.isArray(payload?.models)
-          ? payload.models
-          : [];
+            ? payload.models
+            : [];
 
         const mappedModels = (rawModels as Array<any>)
           .map((item) => {
@@ -392,7 +402,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     localStorage.setItem("skipAuth", skipAuth.toString());
 
     if (!useLocalWhisper && trimmedApiKey) {
-      await persistOpenAIKey(trimmedApiKey);
+      await persistGeminiKey(trimmedApiKey);
     }
     return true;
   }, [
@@ -408,7 +418,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     reasoningBaseUrl,
     updateTranscriptionSettings,
     updateReasoningSettings,
-    persistOpenAIKey,
+    persistGeminiKey,
     setCloudTranscriptionBaseUrl,
     setCloudReasoningBaseUrl,
     setDictationKey,
@@ -430,7 +440,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       setDictationKey(hotkey);
     }
     if (currentStep === 2 && !useLocalWhisper) {
-      await persistOpenAIKey(apiKey);
+      await persistGeminiKey(apiKey);
     }
 
     setCurrentStep(newStep);
@@ -449,7 +459,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     setDictationKey,
     steps.length,
     useLocalWhisper,
-    persistOpenAIKey,
+    persistGeminiKey,
     apiKey,
   ]);
 
@@ -550,7 +560,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
               <p className="text-gray-600">
                 {useLocalWhisper
                   ? "Let's install and configure Whisper on your device"
-                  : "Enter your OpenAI API key to get started"}
+                  : "Enter your Gemini API key to get started"}
               </p>
             </div>
 
@@ -708,103 +718,67 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             ) : (
               <div className="space-y-4">
                 <div className="text-center">
-                  <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-4">
-                    <Key className="w-8 h-8 text-blue-600" />
+                  <div className="w-16 h-16 mx-auto bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+                    <Key className="w-8 h-8 text-emerald-600" />
                   </div>
                 </div>
 
-                <ApiKeyInput
-                  apiKey={apiKey}
-                  setApiKey={setApiKey}
-                  label="OpenAI API Key"
-                  helpText={
-                    <>
-                      Need an API key?{" "}
-                      <a
-                        href="https://platform.openai.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 underline"
-                      >
-                        platform.openai.com
-                      </a>
-                    </>
-                  }
-                />
+                <div className="space-y-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <h4 className="font-medium text-emerald-900">Gemini Cloud Transcription</h4>
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-blue-900">Custom transcription base URL (optional)</label>
-                  <Input
-                    value={transcriptionBaseUrl}
-                    onChange={(event) => setTranscriptionBaseUrl(event.target.value)}
-                    placeholder="https://api.openai.com/v1"
-                    className="text-sm"
-                  />
-                  <p className="text-xs text-blue-800">Cloud transcription requests default to <code>{API_ENDPOINTS.TRANSCRIPTION_BASE}</code>. Enter an OpenAI-compatible base URL to override.</p>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-blue-900">Custom reasoning base URL (optional)</label>
-                  <Input
-                    value={reasoningBaseUrl}
-                    onChange={(event) => setReasoningBaseUrl(event.target.value)}
-                    placeholder="https://api.openai.com/v1"
-                    className="text-sm"
-                  />
-                  <p className="text-xs text-blue-800">We'll load AI models from this endpoint's /v1/models route during setup. Leave empty to use the default OpenAI endpoint.</p>
-                </div>
-
-                <div className="space-y-3 pt-4 border-t border-blue-100">
-                  <h4 className="font-medium text-blue-900">Reasoning Model</h4>
-                  {hasEnteredReasoningBase ? (
-                    <>
-                      {isValidReasoningBase ? (
-                        <p className="text-xs text-blue-800 break-all">
-                          Models load from <code>{reasoningModelsEndpoint}</code>.
-                        </p>
-                      ) : (
-                        <p className="text-xs text-amber-600">
-                          Enter a full base URL including protocol (e.g. https://server/v1).
-                        </p>
-                      )}
-                      {isValidReasoningBase && customModelsLoading && (
-                        <p className="text-xs text-blue-600">Fetching models...</p>
-                      )}
-                      {isValidReasoningBase && customModelsError && (
-                        <p className="text-xs text-red-600">{customModelsError}</p>
-                      )}
-                      {isValidReasoningBase &&
-                        !customModelsLoading &&
-                        !customModelsError &&
-                        displayedReasoningModels.length === 0 && (
-                          <p className="text-xs text-amber-600">
-                            No models returned by this endpoint.
-                          </p>
-                        )}
-                    </>
-                  ) : (
-                    <p className="text-xs text-blue-800">
-                      Using OpenAI defaults from <code>{reasoningModelsEndpoint}</code>.
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-emerald-900">
+                      Model
+                    </label>
+                    <Select
+                      value={geminiTranscriptionModel}
+                      onValueChange={setGeminiTranscriptionModel}
+                    >
+                      <SelectTrigger className="w-full bg-white">
+                        <SelectValue placeholder="Select a model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {GEMINI_TRANSCRIPTION_MODELS.map((model) => (
+                          <SelectItem key={model.id} value={model.id}>
+                            {model.name} {model.recommended && "⭐"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-emerald-700">
+                      Free tier: 15 requests/min, 1000 requests/day
                     </p>
-                  )}
-                  <UnifiedModelPickerCompact
-                    models={displayedReasoningModels}
-                    selectedModel={reasoningModel}
-                    onModelSelect={(modelId) =>
-                      updateReasoningSettings({ reasoningModel: modelId })
+                  </div>
+
+                  <ApiKeyInput
+                    apiKey={apiKey}
+                    setApiKey={setApiKey}
+                    label="Gemini API Key"
+                    helpText={
+                      <>
+                        Get a free API key from{" "}
+                        <a
+                          href="https://aistudio.google.com"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-emerald-600 underline"
+                        >
+                          Google AI Studio
+                        </a>
+                      </>
                     }
                   />
                 </div>
 
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-blue-900 mb-2">
+                <div className="bg-emerald-50 p-4 rounded-lg">
+                  <h4 className="font-medium text-emerald-900 mb-2">
                     How to get your API key:
                   </h4>
-                  <ol className="text-sm text-blue-800 space-y-1">
-                    <li>1. Go to platform.openai.com</li>
-                    <li>2. Sign in to your account</li>
-                    <li>3. Navigate to API Keys</li>
-                    <li>4. Create a new secret key</li>
+                  <ol className="text-sm text-emerald-800 space-y-1">
+                    <li>1. Go to aistudio.google.com</li>
+                    <li>2. Sign in with your Google account</li>
+                    <li>3. Click "Get API key"</li>
+                    <li>4. Create a new API key</li>
                     <li>5. Copy and paste it here</li>
                   </ol>
                 </div>
@@ -1146,7 +1120,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                   <span>Permissions:</span>
                   <span className="font-medium text-green-600">
                     {permissionsHook.micPermissionGranted &&
-                    permissionsHook.accessibilityPermissionGranted
+                      permissionsHook.accessibilityPermissionGranted
                       ? "✓ Granted"
                       : "⚠ Review needed"}
                   </span>
@@ -1178,21 +1152,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         if (useLocalWhisper) {
           return pythonHook.pythonInstalled && whisperHook.whisperInstalled;
         } else {
-          const trimmedKey = apiKey.trim();
-          if (!trimmedKey) {
-            return false;
-          }
-          if (!hasEnteredReasoningBase) {
-            return true;
-          }
-          if (!isValidReasoningBase) {
-            return false;
-          }
-          return (
-            customReasoningModels.length > 0 &&
-            !customModelsLoading &&
-            !customModelsError
-          );
+          // Just check if API key is entered
+          return apiKey.trim().length > 0;
         }
       case 3:
         return (
@@ -1253,7 +1214,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         onOpenChange={(open) => !open && hideAlertDialog()}
         title={alertDialog.title}
         description={alertDialog.description}
-        onOk={() => {}}
+        onOk={() => { }}
       />
       {/* Left margin line for entire page */}
       <div className="fixed left-6 md:left-12 top-0 bottom-0 w-px bg-red-300/40 z-0"></div>

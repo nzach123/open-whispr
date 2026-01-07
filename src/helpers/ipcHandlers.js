@@ -150,7 +150,7 @@ class IPCHandlers {
           audioBlobSize: audioBlob?.byteLength || audioBlob?.length || 0,
           options
         });
-        
+
         try {
           const result = await this.whisperManager.transcribeLocalWhisper(
             audioBlob,
@@ -163,7 +163,7 @@ class IPCHandlers {
             message: result.message,
             error: result.error
           });
-          
+
           // Check if no audio was detected and send appropriate event
           if (!result.success && result.message === "No audio detected") {
             debugLogger.log('Sending no-audio-detected event to renderer');
@@ -349,11 +349,11 @@ class IPCHandlers {
         );
         return { success: true, path: result };
       } catch (error) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: error.message,
           code: error.code,
-          details: error.details 
+          details: error.details
         };
       }
     });
@@ -364,11 +364,11 @@ class IPCHandlers {
         await modelManager.deleteModel(modelId);
         return { success: true };
       } catch (error) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: error.message,
           code: error.code,
-          details: error.details 
+          details: error.details
         };
       }
     });
@@ -394,11 +394,11 @@ class IPCHandlers {
         await modelManager.ensureLlamaCpp();
         return { available: true };
       } catch (error) {
-        return { 
-          available: false, 
+        return {
+          available: false,
           error: error.message,
           code: error.code,
-          details: error.details 
+          details: error.details
         };
       }
     });
@@ -434,7 +434,7 @@ class IPCHandlers {
     ipcMain.handle("process-anthropic-reasoning", async (event, text, modelId, agentName, config) => {
       try {
         const apiKey = this.environmentManager.getAnthropicKey();
-        
+
         if (!apiKey) {
           throw new Error("Anthropic API key not configured");
         }
@@ -530,6 +530,72 @@ class IPCHandlers {
     ipcMain.handle("app-log", async (event, entry) => {
       debugLogger.logEntry(entry);
       return { success: true };
+    });
+
+    // Audio conversion for Gemini transcription (WAV to MP3)
+    ipcMain.handle("convert-wav-to-mp3", async (event, wavBuffer) => {
+      const fs = require("fs");
+      const path = require("path");
+      const os = require("os");
+      const { execFile } = require("child_process");
+      const { promisify } = require("util");
+      const execFileAsync = promisify(execFile);
+
+      const tempDir = os.tmpdir();
+      const timestamp = Date.now();
+      const tempWav = path.join(tempDir, `whispr_${timestamp}.wav`);
+      const tempMp3 = path.join(tempDir, `whispr_${timestamp}.mp3`);
+
+      try {
+        // Write WAV buffer to temp file
+        fs.writeFileSync(tempWav, Buffer.from(wavBuffer));
+
+        // Get FFmpeg path from whisperManager
+        const ffmpegPath = await this.whisperManager.getFFmpegPath();
+        if (!ffmpegPath) {
+          throw new Error("FFmpeg not available for audio conversion");
+        }
+
+        // Convert to MP3 with low bitrate for smaller payload
+        await execFileAsync(ffmpegPath, [
+          "-i", tempWav,
+          "-b:a", "64k",      // Low bitrate for speech
+          "-ac", "1",         // Mono
+          "-ar", "16000",     // 16kHz sample rate
+          "-y",               // Overwrite output
+          tempMp3
+        ]);
+
+        // Read MP3 and convert to base64
+        const mp3Buffer = fs.readFileSync(tempMp3);
+        const base64Mp3 = mp3Buffer.toString("base64");
+
+        // Cleanup temp files
+        try {
+          fs.unlinkSync(tempWav);
+          fs.unlinkSync(tempMp3);
+        } catch (cleanupErr) {
+          debugLogger.log("Temp file cleanup warning:", cleanupErr.message);
+        }
+
+        debugLogger.log("WAV to MP3 conversion complete", {
+          originalSize: wavBuffer.byteLength,
+          mp3Size: mp3Buffer.length,
+          compressionRatio: (wavBuffer.byteLength / mp3Buffer.length).toFixed(2)
+        });
+
+        return base64Mp3;
+      } catch (error) {
+        // Cleanup on error
+        try {
+          if (fs.existsSync(tempWav)) fs.unlinkSync(tempWav);
+          if (fs.existsSync(tempMp3)) fs.unlinkSync(tempMp3);
+        } catch (cleanupErr) {
+          // Ignore cleanup errors
+        }
+        debugLogger.error("WAV to MP3 conversion failed:", error);
+        throw error;
+      }
     });
   }
 

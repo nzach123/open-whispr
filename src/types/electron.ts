@@ -207,14 +207,14 @@ declare global {
       onModelDownloadProgress: (
         callback: (event: any, data: any) => void
       ) => (() => void) | void;
-      
+
       // Local reasoning
       processLocalReasoning: (text: string, modelId: string, agentName: string | null, config: any) => Promise<{ success: boolean; text?: string; error?: string }>;
       checkLocalReasoningAvailable: () => Promise<boolean>;
-      
+
       // Anthropic reasoning
       processAnthropicReasoning: (text: string, modelId: string, agentName: string | null, config: any) => Promise<{ success: boolean; text?: string; error?: string }>;
-      
+
       // llama.cpp management
       llamaCppCheck: () => Promise<{ isInstalled: boolean; version?: string }>;
       llamaCppInstall: () => Promise<{ success: boolean; error?: string }>;
@@ -274,11 +274,11 @@ declare global {
 
       // Hotkey management
       updateHotkey: (key: string) => Promise<{ success: boolean; message: string }>;
-      
+
       // Gemini API key management
       getGeminiKey: () => Promise<string | null>;
       saveGeminiKey: (key: string) => Promise<void>;
-      
+
       // Debug logging
       getLogLevel?: () => Promise<string>;
       log?: (entry: {
@@ -288,11 +288,14 @@ declare global {
         scope?: string;
         source?: string;
       }) => Promise<void>;
-      
+
       // FFmpeg availability
       checkFFmpegAvailability: () => Promise<boolean>;
+
+      // Audio conversion for Gemini transcription
+      convertWavToMp3: (wavBuffer: ArrayBuffer) => Promise<string>;
     };
-    
+
     api?: {
       sendDebugLog: (message: string) => void;
     };
