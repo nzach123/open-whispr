@@ -532,7 +532,7 @@ class IPCHandlers {
       return { success: true };
     });
 
-    // Audio conversion for Gemini transcription (WAV to MP3)
+    // Audio conversion for Gemini transcription (any format to MP3)
     ipcMain.handle("convert-wav-to-mp3", async (event, wavBuffer) => {
       const fs = require("fs");
       const path = require("path");
@@ -543,12 +543,20 @@ class IPCHandlers {
 
       const tempDir = os.tmpdir();
       const timestamp = Date.now();
-      const tempWav = path.join(tempDir, `whispr_${timestamp}.wav`);
+      // Use generic extension since input could be webm, wav, or other formats
+      const tempInput = path.join(tempDir, `whispr_${timestamp}.webm`);
       const tempMp3 = path.join(tempDir, `whispr_${timestamp}.mp3`);
 
       try {
-        // Write WAV buffer to temp file
-        fs.writeFileSync(tempWav, Buffer.from(wavBuffer));
+        // Write buffer to temp file
+        const buffer = Buffer.from(wavBuffer);
+        fs.writeFileSync(tempInput, buffer);
+
+        debugLogger.log("Audio conversion starting", {
+          inputSize: buffer.length,
+          tempInput,
+          tempMp3
+        });
 
         // Get FFmpeg path from whisperManager
         const ffmpegPath = await this.whisperManager.getFFmpegPath();
@@ -557,8 +565,10 @@ class IPCHandlers {
         }
 
         // Convert to MP3 with low bitrate for smaller payload
+        // FFmpeg auto-detects input format, so we don't need to specify it
         await execFileAsync(ffmpegPath, [
-          "-i", tempWav,
+          "-i", tempInput,
+          "-vn",              // No video
           "-b:a", "64k",      // Low bitrate for speech
           "-ac", "1",         // Mono
           "-ar", "16000",     // 16kHz sample rate
@@ -572,28 +582,28 @@ class IPCHandlers {
 
         // Cleanup temp files
         try {
-          fs.unlinkSync(tempWav);
+          fs.unlinkSync(tempInput);
           fs.unlinkSync(tempMp3);
         } catch (cleanupErr) {
           debugLogger.log("Temp file cleanup warning:", cleanupErr.message);
         }
 
-        debugLogger.log("WAV to MP3 conversion complete", {
-          originalSize: wavBuffer.byteLength,
+        debugLogger.log("Audio to MP3 conversion complete", {
+          originalSize: buffer.length,
           mp3Size: mp3Buffer.length,
-          compressionRatio: (wavBuffer.byteLength / mp3Buffer.length).toFixed(2)
+          compressionRatio: (buffer.length / mp3Buffer.length).toFixed(2)
         });
 
         return base64Mp3;
       } catch (error) {
         // Cleanup on error
         try {
-          if (fs.existsSync(tempWav)) fs.unlinkSync(tempWav);
+          if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
           if (fs.existsSync(tempMp3)) fs.unlinkSync(tempMp3);
         } catch (cleanupErr) {
           // Ignore cleanup errors
         }
-        debugLogger.error("WAV to MP3 conversion failed:", error);
+        debugLogger.error("Audio to MP3 conversion failed:", error);
         throw error;
       }
     });

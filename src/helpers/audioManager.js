@@ -37,7 +37,14 @@ class AudioManager {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
 
-      this.mediaRecorder = new MediaRecorder(stream);
+      // Try to use a format that's more compatible with FFmpeg
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : 'audio/wav';
+
+      this.mediaRecorder = new MediaRecorder(stream, { mimeType });
       this.audioChunks = [];
       this.recordingStartTime = Date.now();
 
@@ -50,7 +57,8 @@ class AudioManager {
         this.isProcessing = true;
         this.onStateChange?.({ isRecording: false, isProcessing: true });
 
-        const audioBlob = new Blob(this.audioChunks, { type: "audio/wav" });
+        // Use the actual MIME type from MediaRecorder
+        const audioBlob = new Blob(this.audioChunks, { type: this.mediaRecorder.mimeType });
 
         if (audioBlob.size === 0) {
         }
@@ -236,9 +244,13 @@ class AudioManager {
     try {
       const apiKey = await this.getGeminiAPIKey();
 
-      // Convert audio to MP3 via Main process FFmpeg for smaller payload
+      // Convert audio blob to Uint8Array for proper IPC transfer
       const arrayBuffer = await audioBlob.arrayBuffer();
-      const base64Mp3 = await window.electronAPI.convertWavToMp3(arrayBuffer);
+      const uint8Array = new Uint8Array(arrayBuffer);
+
+      // Convert to MP3 via Main process FFmpeg for smaller payload
+      // Pass as array for proper serialization through IPC
+      const base64Mp3 = await window.electronAPI.convertWavToMp3(Array.from(uint8Array));
 
       // Build Gemini request
       const languageHint = language && language !== "auto" ? ` in ${language}` : "";

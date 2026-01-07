@@ -737,9 +737,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                       <SelectTrigger className="w-full bg-white">
                         <SelectValue placeholder="Select a model" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-white border border-gray-200 shadow-lg z-50">
                         {GEMINI_TRANSCRIPTION_MODELS.map((model) => (
-                          <SelectItem key={model.id} value={model.id}>
+                          <SelectItem key={model.id} value={model.id} className="hover:bg-gray-100">
                             {model.name} {model.recommended && "⭐"}
                           </SelectItem>
                         ))}
@@ -1083,20 +1083,14 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                   <span className="font-medium">
                     {useLocalWhisper
                       ? `Local (${whisperModel})`
-                      : "OpenAI Cloud"}
+                      : "Gemini Cloud"}
                   </span>
                 </div>
                 {!useLocalWhisper && (
                   <div className="flex justify-between">
-                    <span>Reasoning Model:</span>
-                    <span className="font-medium">{activeReasoningModelLabel}</span>
-                  </div>
-                )}
-                {!useLocalWhisper && hasEnteredReasoningBase && (
-                  <div className="flex justify-between">
-                    <span>Custom Endpoint:</span>
-                    <span className="font-medium break-all">
-                      {normalizedReasoningBaseUrl || trimmedReasoningBase}
+                    <span>Transcription Model:</span>
+                    <span className="font-medium">
+                      {GEMINI_TRANSCRIPTION_MODELS.find(m => m.id === geminiTranscriptionModel)?.name || geminiTranscriptionModel}
                     </span>
                   </div>
                 )}
