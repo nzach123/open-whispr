@@ -2,6 +2,10 @@ export interface ReasoningConfig {
   maxTokens?: number;
   temperature?: number;
   contextSize?: number;
+  /** Agent-specific system prompt that overrides the default */
+  agentSystemPrompt?: string;
+  /** Agent output mode: concise or elaborate */
+  outputMode?: 'concise' | 'elaborate';
 }
 
 export abstract class BaseReasoningService {
@@ -9,12 +13,29 @@ export abstract class BaseReasoningService {
 
   /**
    * Get reasoning prompt
+   * Priority: agentSystemPrompt > custom localStorage prompts > defaults
    */
   protected getReasoningPrompt(
-    text: string, 
+    text: string,
     agentName: string | null,
     config: ReasoningConfig = {}
   ): string {
+    // If agent-specific system prompt is provided, use it directly
+    if (config.agentSystemPrompt) {
+      let prompt = config.agentSystemPrompt
+        .replace(/\{\{text\}\}/g, text)
+        .replace(/\{\{agentName\}\}/g, agentName || '');
+
+      // Add output mode instruction if specified
+      if (config.outputMode === 'concise') {
+        prompt += '\n\nBe concise and direct in your response.';
+      } else if (config.outputMode === 'elaborate') {
+        prompt += '\n\nProvide thorough, detailed explanations.';
+      }
+
+      return prompt;
+    }
+
     // Default prompts
     const DEFAULT_AGENT_PROMPT = `You are {{agentName}}, a helpful AI assistant. Clean up the following dictated text by fixing grammar, punctuation, and formatting. Remove any reference to your name. Output ONLY the cleaned text without explanations or options:\n\n{{text}}`;
     const DEFAULT_REGULAR_PROMPT = `Clean up the following dictated text by fixing grammar, punctuation, and formatting. Output ONLY the cleaned text without any explanations, options, or commentary:\n\n{{text}}`;
@@ -43,7 +64,7 @@ export abstract class BaseReasoningService {
         .replace(/\{\{agentName\}\}/g, agentName)
         .replace(/\{\{text\}\}/g, text);
     }
-    
+
     // Regular prompt - replace placeholders
     return regularPrompt.replace(/\{\{text\}\}/g, text);
   }

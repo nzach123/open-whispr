@@ -422,17 +422,19 @@ class AudioManager {
     return new Blob([arrayBuffer], { type: "audio/wav" });
   }
 
-  async processWithReasoningModel(text, model, agentName) {
+  async processWithReasoningModel(text, model, agentName, agentConfig = {}) {
     logger.logReasoning("CALLING_REASONING_SERVICE", {
       model,
       agentName,
+      hasAgentConfig: !!agentConfig.agentSystemPrompt,
+      outputMode: agentConfig.outputMode,
       textLength: text.length
     });
 
     const startTime = Date.now();
 
     try {
-      const result = await ReasoningService.processText(text, model, agentName);
+      const result = await ReasoningService.processText(text, model, agentName, agentConfig);
 
       const processingTime = Date.now() - startTime;
 
@@ -540,16 +542,54 @@ class AudioManager {
     const reasoningProvider = (typeof window !== 'undefined' && window.localStorage)
       ? (localStorage.getItem("reasoningProvider") || "auto")
       : "auto";
-    const agentName = (typeof window !== 'undefined' && window.localStorage)
-      ? (localStorage.getItem("agentName") || null)
-      : null;
     const useReasoning = await this.isReasoningAvailable();
+
+    // Detect matching agent from transcribed text
+    let matchedAgent = null;
+    let agentName = null;
+    let agentConfig = {};
+
+    try {
+      // Fetch agents from IPC
+      const agentsResult = await window.electronAPI?.getAgents?.();
+      if (agentsResult?.success && agentsResult.agents?.length > 0) {
+        const agents = agentsResult.agents.filter(a => a.enabled);
+        const lowerText = normalizedText.toLowerCase();
+
+        for (const agent of agents) {
+          for (const phrase of agent.triggerPhrases || []) {
+            if (lowerText.includes(phrase.toLowerCase())) {
+              matchedAgent = agent;
+              agentName = agent.name;
+              agentConfig = {
+                agentSystemPrompt: agent.systemPrompt,
+                outputMode: agent.outputMode
+              };
+              logger.logReasoning("AGENT_MATCHED", {
+                agentName: agent.name,
+                matchedPhrase: phrase,
+                outputMode: agent.outputMode
+              });
+              break;
+            }
+          }
+          if (matchedAgent) break;
+        }
+      }
+    } catch (err) {
+      // Fallback to legacy single agentName if IPC fails
+      agentName = (typeof window !== 'undefined' && window.localStorage)
+        ? (localStorage.getItem("agentName") || null)
+        : null;
+      logger.logReasoning("AGENT_FETCH_FALLBACK", { error: err.message, agentName });
+    }
 
     logger.logReasoning("REASONING_CHECK", {
       useReasoning,
       reasoningModel,
       reasoningProvider,
-      agentName
+      agentName,
+      hasAgentConfig: !!agentConfig.agentSystemPrompt
     });
 
     if (useReasoning) {
@@ -559,10 +599,12 @@ class AudioManager {
         logger.logReasoning("SENDING_TO_REASONING", {
           preparedTextLength: preparedText.length,
           model: reasoningModel,
-          provider: reasoningProvider
+          provider: reasoningProvider,
+          agentName,
+          hasAgentSystemPrompt: !!agentConfig.agentSystemPrompt
         });
 
-        const result = await this.processWithReasoningModel(preparedText, reasoningModel, agentName);
+        const result = await this.processWithReasoningModel(preparedText, reasoningModel, agentName, agentConfig);
 
         logger.logReasoning("REASONING_SUCCESS", {
           resultLength: result.length,

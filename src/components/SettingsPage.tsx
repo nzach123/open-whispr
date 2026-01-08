@@ -19,6 +19,7 @@ import LanguageSelector from "./ui/LanguageSelector";
 import PromptStudio from "./ui/PromptStudio";
 import { API_ENDPOINTS, GEMINI_TRANSCRIPTION_MODELS } from "../config/constants";
 import AIModelSelectorEnhanced from "./AIModelSelectorEnhanced";
+import AgentManager from "./AgentManager";
 import type { UpdateInfoResult } from "../types/electron";
 import {
   Select,
@@ -1119,87 +1120,7 @@ export default function SettingsPage({
       case "agentConfig":
         return (
           <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Agent Configuration
-              </h3>
-              <p className="text-sm text-gray-600 mb-6">
-                Customize your AI assistant's name and behavior to make
-                interactions more personal and effective.
-              </p>
-            </div>
-
-            <div className="space-y-4 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl">
-              <h4 className="font-medium text-purple-900 mb-3">
-                💡 How to use agent names:
-              </h4>
-              <ul className="text-sm text-purple-800 space-y-2">
-                <li>
-                  • Say "Hey {agentName}, write a formal email" for specific
-                  instructions
-                </li>
-                <li>
-                  • Use "Hey {agentName}, format this as a list" for text
-                  enhancement commands
-                </li>
-                <li>
-                  • The agent will recognize when you're addressing it directly
-                  vs. dictating content
-                </li>
-                <li>
-                  • Makes conversations feel more natural and helps distinguish
-                  commands from dictation
-                </li>
-              </ul>
-            </div>
-
-            <div className="space-y-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
-              <h4 className="font-medium text-gray-900">Current Agent Name</h4>
-              <div className="flex gap-3">
-                <Input
-                  placeholder="e.g., Assistant, Jarvis, Alex..."
-                  value={agentName}
-                  onChange={(e) => setAgentName(e.target.value)}
-                  className="flex-1 text-center text-lg font-mono"
-                />
-                <Button
-                  onClick={() => {
-                    setAgentName(agentName.trim());
-                    showAlertDialog({
-                      title: "Agent Name Updated",
-                      description: `Your agent is now named "${agentName.trim()}". You can address it by saying "Hey ${agentName.trim()}" followed by your instructions.`,
-                    });
-                  }}
-                  disabled={!agentName.trim()}
-                >
-                  Save
-                </Button>
-              </div>
-              <p className="text-xs text-gray-600 mt-2">
-                Choose a name that feels natural to say and remember
-              </p>
-            </div>
-
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="font-medium text-blue-900 mb-2">
-                🎯 Example Usage:
-              </h4>
-              <div className="text-sm text-blue-800 space-y-1">
-                <p>
-                  • "Hey {agentName}, write an email to my team about the
-                  meeting"
-                </p>
-                <p>
-                  • "Hey {agentName}, make this more professional" (after
-                  dictating text)
-                </p>
-                <p>• "Hey {agentName}, convert this to bullet points"</p>
-                <p>
-                  • Regular dictation: "This is just normal text" (no agent name
-                  needed)
-                </p>
-              </div>
-            </div>
+            <AgentManager />
           </div>
         );
 

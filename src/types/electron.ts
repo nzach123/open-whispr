@@ -1,3 +1,5 @@
+import type { AIAgent } from './agentTypes';
+
 export interface TranscriptionItem {
   id: number;
   text: string;
@@ -207,6 +209,12 @@ declare global {
       onModelDownloadProgress: (
         callback: (event: any, data: any) => void
       ) => (() => void) | void;
+
+      // AI Agent management
+      getAgents: () => Promise<{ success: boolean; agents: AIAgent[]; error?: string }>;
+      saveAgent: (agent: AIAgent) => Promise<{ success: boolean; agent?: AIAgent; error?: string }>;
+      deleteAgent: (id: string) => Promise<{ success: boolean; error?: string }>;
+      resetAgentsToDefaults: () => Promise<{ success: boolean; agents?: AIAgent[]; error?: string }>;
 
       // Local reasoning
       processLocalReasoning: (text: string, modelId: string, agentName: string | null, config: any) => Promise<{ success: boolean; text?: string; error?: string }>;

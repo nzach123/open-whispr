@@ -133,6 +133,206 @@ class IPCHandlers {
       return this.clipboardManager.pasteText(text);
     });
 
+    // ==========================================
+    // AI Agent Management Handlers
+    // ==========================================
+    const AGENTS_STORAGE_KEY = "openwhispr_agents";
+
+    // Helper to get agents from storage file
+    const getAgentsFromStorage = () => {
+      const path = require("path");
+      const fs = require("fs");
+      const storageFile = path.join(app.getPath("userData"), "agents.json");
+
+      try {
+        if (fs.existsSync(storageFile)) {
+          const data = fs.readFileSync(storageFile, "utf8");
+          return JSON.parse(data);
+        }
+      } catch (error) {
+        debugLogger.error("Failed to read agents from storage:", error);
+      }
+      return null;
+    };
+
+    // Helper to save agents to storage file
+    const saveAgentsToStorage = (agents) => {
+      const path = require("path");
+      const fs = require("fs");
+      const storageFile = path.join(app.getPath("userData"), "agents.json");
+
+      try {
+        fs.writeFileSync(storageFile, JSON.stringify(agents, null, 2), "utf8");
+        return true;
+      } catch (error) {
+        debugLogger.error("Failed to save agents to storage:", error);
+        return false;
+      }
+    };
+
+    // Get default agents
+    const getDefaultAgents = () => {
+      const now = new Date().toISOString();
+      return [
+        {
+          id: "agent_archie",
+          name: "Archie",
+          triggerPhrases: ["Hey Archie", "Architect"],
+          systemPrompt: `You are Archie, a senior Electron architect for OpenWhispr. Your expertise:
+
+- IPC patterns: ipcMain.handle ↔ ipcRenderer.invoke ↔ preload.js context bridge
+- Process boundaries: Main (Node.js/CommonJS) vs Renderer (React/TypeScript/Vite)
+- electron.ts: The source of truth for IPC types — always update when adding handlers
+- Binary safety: Never hardcode paths; use app.getPath(), app.asar.unpacked patterns
+- Cross-platform: Windows (PowerShell, .exe) and macOS (Homebrew, .app bundles)
+
+When reviewing code, check:
+1. Is the IPC handler defined in ipcHandlers.js?
+2. Is it exposed in preload.js?
+3. Are types updated in src/types/electron.ts?
+
+Process the following dictated text and provide precise, actionable guidance.
+
+{{text}}`,
+          outputMode: "elaborate",
+          enabled: true,
+          isBuiltIn: true,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: "agent_rex",
+          name: "Rex",
+          triggerPhrases: ["Hey Rex", "React"],
+          systemPrompt: `You are Rex, a senior React/TypeScript developer for OpenWhispr. Your expertise:
+
+- React 19 with Vite 6 and TailwindCSS 4 (using @tailwindcss/vite)
+- shadcn/ui components (Radix primitives) — Dialog, Select, Tabs, Progress
+- Custom hooks: useSettings, useLocalStorage, useLocalModels, useSyncExternalStore
+- Type safety: Always consume window.electronAPI through typed interfaces
+- State: Push persistent data to Main process; use localStorage for settings
+
+When writing UI code:
+1. Use existing cn() utility from lib/utils for className merging
+2. Follow existing component patterns in src/components/
+3. Keep components focused — split large files into sub-components
+
+Process the following dictated text. Output clean, idiomatic TypeScript.
+
+{{text}}`,
+          outputMode: "concise",
+          enabled: true,
+          isBuiltIn: true,
+          createdAt: now,
+          updatedAt: now,
+        },
+        {
+          id: "agent_py",
+          name: "Py",
+          triggerPhrases: ["Hey Py", "Python"],
+          systemPrompt: `You are Py, a senior Python/ML engineer for OpenWhispr. Your expertise:
+
+- whisper_bridge.py: Model loading, transcription, FFmpeg path resolution
+- Dual-context execution: Development (source files) vs Production (ASAR/MEIPASS)
+- Path safety: Check sys._MEIPASS, then app.asar.unpacked, then fallback
+- Output protocol: JSON to stdout (results), text to stderr (progress/debug)
+- Dependencies: Minimize pip requirements; prefer standard library
+
+When modifying Python code:
+1. Wrap subprocess/file ops in try/except with meaningful error codes
+2. Return structured JSON: {"success": bool, "error"?: string, "data"?: any}
+3. Log debug info to stderr, not stdout
+
+Process the following dictated text. Output practical, defensive code.
+
+{{text}}`,
+          outputMode: "elaborate",
+          enabled: true,
+          isBuiltIn: true,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ];
+    };
+
+    ipcMain.handle("agent-get-all", async () => {
+      try {
+        let agents = getAgentsFromStorage();
+
+        // If no agents exist, initialize with defaults
+        if (!agents || agents.length === 0) {
+          agents = getDefaultAgents();
+          saveAgentsToStorage(agents);
+        }
+
+        return { success: true, agents };
+      } catch (error) {
+        debugLogger.error("Failed to get agents:", error);
+        return { success: false, error: error.message, agents: [] };
+      }
+    });
+
+    ipcMain.handle("agent-save", async (event, agent) => {
+      try {
+        let agents = getAgentsFromStorage() || [];
+        const existingIndex = agents.findIndex((a) => a.id === agent.id);
+
+        if (existingIndex >= 0) {
+          // Update existing agent
+          agents[existingIndex] = {
+            ...agents[existingIndex],
+            ...agent,
+            updatedAt: new Date().toISOString(),
+          };
+        } else {
+          // Add new agent
+          agents.push({
+            ...agent,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        }
+
+        saveAgentsToStorage(agents);
+        return { success: true, agent: agents[existingIndex >= 0 ? existingIndex : agents.length - 1] };
+      } catch (error) {
+        debugLogger.error("Failed to save agent:", error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("agent-delete", async (event, agentId) => {
+      try {
+        let agents = getAgentsFromStorage() || [];
+        const agentToDelete = agents.find((a) => a.id === agentId);
+
+        if (agentToDelete?.isBuiltIn) {
+          return { success: false, error: "Cannot delete built-in agents" };
+        }
+
+        agents = agents.filter((a) => a.id !== agentId);
+        saveAgentsToStorage(agents);
+        return { success: true };
+      } catch (error) {
+        debugLogger.error("Failed to delete agent:", error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("agent-reset-defaults", async () => {
+      try {
+        const agents = getDefaultAgents();
+        saveAgentsToStorage(agents);
+        return { success: true, agents };
+      } catch (error) {
+        debugLogger.error("Failed to reset agents:", error);
+        return { success: false, error: error.message };
+      }
+    });
+    // ==========================================
+    // End AI Agent Management Handlers
+    // ==========================================
+
     ipcMain.handle("read-clipboard", async (event) => {
       return this.clipboardManager.readClipboard();
     });

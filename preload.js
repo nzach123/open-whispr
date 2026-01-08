@@ -140,6 +140,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   modelCheckRuntime: () => ipcRenderer.invoke("model-check-runtime"),
   onModelDownloadProgress: registerListener("model-download-progress"),
 
+  // AI Agent management
+  getAgents: () => ipcRenderer.invoke("agent-get-all"),
+  saveAgent: (agent) => ipcRenderer.invoke("agent-save", agent),
+  deleteAgent: (id) => ipcRenderer.invoke("agent-delete", id),
+  resetAgentsToDefaults: () => ipcRenderer.invoke("agent-reset-defaults"),
+
   // Anthropic API
   getAnthropicKey: () => ipcRenderer.invoke("get-anthropic-key"),
   saveAnthropicKey: (key) => ipcRenderer.invoke("save-anthropic-key", key),
