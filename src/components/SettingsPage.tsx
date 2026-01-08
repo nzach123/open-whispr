@@ -13,7 +13,8 @@ import { useWhisper } from "../hooks/useWhisper";
 import { usePermissions } from "../hooks/usePermissions";
 import { useClipboard } from "../hooks/useClipboard";
 import { REASONING_PROVIDERS } from "../utils/languages";
-import { formatHotkeyLabel } from "../utils/hotkeys";
+import { formatHotkeyLabel, isValidAccelerator } from "../utils/hotkeys";
+import HotkeyRecorder from "./ui/HotkeyRecorder";
 import LanguageSelector from "./ui/LanguageSelector";
 import PromptStudio from "./ui/PromptStudio";
 import { API_ENDPOINTS, GEMINI_TRANSCRIPTION_MODELS } from "../config/constants";
@@ -723,48 +724,67 @@ export default function SettingsPage({
                   Dictation Hotkey
                 </h3>
                 <p className="text-sm text-gray-600 mb-6">
-                  Configure the key you press to start and stop voice dictation.
+                  Configure the key combination you press to start and stop voice dictation.
+                  Supports single keys (F1, Backtick) or combinations (Ctrl+Space, Cmd+Shift+D).
                 </p>
               </div>
               <div className="space-y-4">
+                {/* Primary: Press to Record */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Activation Key
+                    Record Your Hotkey
                   </label>
-                  <Input
-                    placeholder="Default: ` (backtick)"
+                  <HotkeyRecorder
                     value={dictationKey}
-                    onChange={(e) => setDictationKey(e.target.value)}
-                    className="text-center text-lg font-mono"
+                    onChange={setDictationKey}
+                    placeholder="Click to record shortcut..."
                   />
-                  <p className="text-xs text-gray-500 mt-2">
-                    Press this key from anywhere to start/stop dictation
-                  </p>
                 </div>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-gray-900 mb-3">
-                    Click any key to select it:
-                  </h4>
-                  <React.Suspense
-                    fallback={
-                      <div className="h-32 flex items-center justify-center text-gray-500">
-                        Loading keyboard...
-                      </div>
-                    }
-                  >
-                    <InteractiveKeyboard
-                      selectedKey={dictationKey}
-                      setSelectedKey={setDictationKey}
-                    />
-                  </React.Suspense>
-                </div>
+
+                {/* Fallback: Visual Keyboard for single keys */}
+                <details className="bg-gray-50 p-4 rounded-lg">
+                  <summary className="font-medium text-gray-700 cursor-pointer hover:text-gray-900">
+                    Or select a single key from keyboard
+                  </summary>
+                  <div className="mt-4">
+                    <React.Suspense
+                      fallback={
+                        <div className="h-32 flex items-center justify-center text-gray-500">
+                          Loading keyboard...
+                        </div>
+                      }
+                    >
+                      <InteractiveKeyboard
+                        selectedKey={dictationKey}
+                        setSelectedKey={setDictationKey}
+                      />
+                    </React.Suspense>
+                  </div>
+                </details>
+
+                {/* Current selection display */}
+                {dictationKey && (
+                  <div className="flex items-center justify-center gap-2 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+                    <span className="text-sm text-indigo-700">Current hotkey:</span>
+                    <kbd className="px-3 py-1 bg-white border border-indigo-200 rounded font-mono text-lg font-semibold text-indigo-900">
+                      {formatHotkeyLabel(dictationKey)}
+                    </kbd>
+                  </div>
+                )}
+
                 <Button
                   onClick={saveKey}
-                  disabled={!dictationKey.trim()}
+                  disabled={!dictationKey.trim() || !isValidAccelerator(dictationKey)}
                   className="w-full"
                 >
                   Save Hotkey
                 </Button>
+
+                {dictationKey && !isValidAccelerator(dictationKey) && (
+                  <p className="text-sm text-red-600 text-center">
+                    Please include at least one non-modifier key (e.g., Ctrl+Space, not just Ctrl+Shift)
+                  </p>
+                )}
               </div>
             </div>
 

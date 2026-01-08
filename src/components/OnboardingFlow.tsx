@@ -38,7 +38,8 @@ import LanguageSelector from "./ui/LanguageSelector";
 import { UnifiedModelPickerCompact } from "./UnifiedModelPicker";
 const InteractiveKeyboard = React.lazy(() => import("./ui/Keyboard"));
 import { setAgentName as saveAgentName } from "../utils/agentName";
-import { formatHotkeyLabel } from "../utils/hotkeys";
+import { formatHotkeyLabel, isValidAccelerator } from "../utils/hotkeys";
+import HotkeyRecorder from "./ui/HotkeyRecorder";
 import { API_ENDPOINTS, GEMINI_TRANSCRIPTION_MODELS, buildApiUrl, normalizeBaseUrl } from "../config/constants";
 import {
   Select,
@@ -863,34 +864,51 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 Choose Your Hotkey
               </h2>
               <p className="text-gray-600">
-                Select which key you want to press to start/stop dictation
+                Select the key or combination you want to press to start/stop dictation.
+                Supports single keys (F1) or combinations (Ctrl+Space).
               </p>
             </div>
 
             <div className="space-y-4">
+              {/* Primary: Press to Record */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Activation Key
+                  Record Your Hotkey
                 </label>
-                <Input
-                  placeholder="Default: ` (backtick)"
+                <HotkeyRecorder
                   value={hotkey}
-                  onChange={(e) => setHotkey(e.target.value)}
-                  className="text-center text-lg font-mono"
+                  onChange={setHotkey}
+                  placeholder="Click to record shortcut..."
                 />
-                <p className="text-xs text-gray-500 mt-2">
-                  Press this key from anywhere to start/stop dictation
-                </p>
               </div>
 
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-medium text-gray-900 mb-3">
-                  Click any key to select it:
-                </h4>
-                <React.Suspense fallback={<div>Loading keyboard...</div>}>
-                  <InteractiveKeyboard selectedKey={hotkey} setSelectedKey={setHotkey} />
-                </React.Suspense>
-              </div>
+              {/* Fallback: Visual Keyboard */}
+              <details className="bg-gray-50 p-4 rounded-lg">
+                <summary className="font-medium text-gray-700 cursor-pointer hover:text-gray-900">
+                  Or select a single key from keyboard
+                </summary>
+                <div className="mt-4">
+                  <React.Suspense fallback={<div>Loading keyboard...</div>}>
+                    <InteractiveKeyboard selectedKey={hotkey} setSelectedKey={setHotkey} />
+                  </React.Suspense>
+                </div>
+              </details>
+
+              {/* Current selection display */}
+              {hotkey && (
+                <div className="flex items-center justify-center gap-2 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+                  <span className="text-sm text-indigo-700">Your hotkey:</span>
+                  <kbd className="px-3 py-1 bg-white border border-indigo-200 rounded font-mono text-lg font-semibold text-indigo-900">
+                    {formatHotkeyLabel(hotkey)}
+                  </kbd>
+                </div>
+              )}
+
+              {hotkey && !isValidAccelerator(hotkey) && (
+                <p className="text-sm text-red-600 text-center">
+                  Please include at least one non-modifier key (e.g., Ctrl+Space, not just Ctrl+Shift)
+                </p>
+              )}
             </div>
           </div>
         );

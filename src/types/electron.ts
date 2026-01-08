@@ -273,7 +273,13 @@ declare global {
       removeAllListeners: (channel: string) => void;
 
       // Hotkey management
-      updateHotkey: (key: string) => Promise<{ success: boolean; message: string }>;
+      // Accepts Electron accelerator strings (e.g., "Ctrl+Space", "CommandOrControl+Shift+A", "F1")
+      updateHotkey: (accelerator: string) => Promise<{
+        success: boolean;
+        message: string;
+        code?: 'INVALID_FORMAT' | 'PLATFORM_UNSUPPORTED' | 'REGISTRATION_FAILED' | 'EXCEPTION';
+        hotkey?: string; // Normalized accelerator that was registered
+      }>;
 
       // Gemini API key management
       getGeminiKey: () => Promise<string | null>;
